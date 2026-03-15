@@ -1,0 +1,721 @@
+---
+title: 'Lecture 2: Computer Methods for Solving Linear Systems of Equations'
+author: Joong-Ho Won
+institution: Seoul National University
+date: today
+format:
+  html:
+    toc: true
+  ipynb: default
+filters:
+  - collapse-output
+---
+
+<!-- Requires 'collapse-output' quarto package: https://github.com/mcanouil/quarto-collapse-output --> 
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+sessionInfo()
+```
+
+
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+library(Matrix)
+```
+
+## Introduction
+
+We consider computer algorithms for solving linear equations $\mathbf{A} \mathbf{x} = \mathbf{b}$, a ubiquitous task in statistics. 
+
+### Our mantra
+
+> **The form of a mathematical expression and the way the expression should be evaluated in actual practice may be quite different.**
+\
+    -- James Gentle, *Matrix Algebra*, Springer, New York (2007).
+
+## Algorithms
+
+* Algorithm is loosely defined as a set of instructions for doing something, which terminates in finite time. An algorithm requires input and output.
+
+
+### Measure of algorithm efficiency 
+
+* A basic unit for measuring algorithmic efficiency is **flop**.  
+    -   A flop (**floating point operation**) consists of a floating point addition, subtraction, multiplication, division, or comparison, and the usually accompanying fetch and store.  
+
+* How to measure efficiency of an algorithm? Big O notation. If $n$ is the size of a problem, an algorithm has order $O(f(n))$, where the leading term in the number of flops is $c \cdot f(n)$. For example,
+    - matrix-vector multiplication `A * b`, where `A` is $m \times n$ and `b` is $n \times 1$, takes $2mn$ or $O(mn)$ flops  
+    - matrix-matrix multiplication `A * B`, where `A` is $m \times n$ and `B` is $n \times p$, takes $2mnp$ or $O(mnp)$ flops
+
+* Typical orders of computational complexity:  
+    - Exponential order: $O(b^n)$ ("horrible")    
+    - Polynomial order: $O(n^q)$ (doable)  
+    - $O(n \log n )$ (fast)  
+    - Linear order $O(n)$ (fast)  
+    - Logarithmic order $O(\log n)$ (super fast)  
+    
+* Difference of $O(n^2)$ and $O(n\log n)$ on massive data. Suppose we have a teraflops supercomputer capable of doing $10^{12}$ flops per second. For a problem of size $n=10^{12}$, $O(n \log n)$ algorithm takes about 
+$$10^{12} \log (10^{12}) / 10^{12} \approx 27 \text{ seconds}.$$ 
+$O(n^2)$ algorithm takes about $10^{12}$ seconds, which is approximately 31710 years!
+
+* The Quicksort and Fast Fourier Transform (invented by John Tukey--recall "bit"--) are celebrated algorithms that turn $O(n^2)$ operations into $O(n \log n)$. 
+
+# Triangular systems
+
+Idea: turning original problem into an **easy** one, e.g., triangular system.
+
+## Lower triangular system
+
+To solve $\mathbf{A} \mathbf{x} = \mathbf{b}$, where $\mathbf{A} \in \mathbb{R}^{n \times n}$ is **lower triangular**
+
+$$
+\begin{bmatrix}
+    a_{11} & 0 & \cdots & 0 \\
+    a_{21} & a_{22} & \cdots & 0 \\
+    \vdots & \vdots & \ddots & \vdots \\
+    a_{n1} & a_{n2} & \cdots & a_{nn}
+\end{bmatrix}
+\begin{bmatrix}
+x_1 \\ x_2 \\ \vdots \\ x_n
+\end{bmatrix} = \begin{bmatrix}
+b_1 \\ b_2 \\ \vdots \\ b_n
+\end{bmatrix}.
+$$
+
+* **Forward substitution**: 
+$$
+\begin{eqnarray*}
+    x_1 &=& b_1 / a_{11} \\
+    x_2 &=& (b_2 - a_{21} x_1) / a_{22} \\
+    x_3 &=& (b_3 - a_{31} x_1 - a_{32} x_2) / a_{33} \\
+    &\vdots& \\
+    x_n &=& (b_n - a_{n1} x_1 - a_{n2} x_2 - \cdots - a_{n,n-1} x_{n-1}) / a_{nn}.
+\end{eqnarray*}
+$$
+
+* $1 + 3 + 5 + \cdots + (2n-1) = n^2$ flops. 
+
+## Upper triangular system
+
+To solve $\mathbf{A} \mathbf{x} = \mathbf{b}$, where $\mathbf{A} \in \mathbb{R}^{n \times n}$ is upper triangular  
+$$
+\begin{bmatrix}
+    a_{11} & \cdots & a_{1,n-1} & a_{1n} \\
+    \vdots & \ddots & \vdots & \vdots \\
+    0 & \cdots & a_{n-1,n-1} & a_{n-1,n} \\
+    0 & 0 & 0 & a_{nn}
+\end{bmatrix}
+\begin{bmatrix}
+x_1 \\ \vdots \\ x_{n-1} \\ x_n
+\end{bmatrix} = \begin{bmatrix}
+b_1 \\ \vdots \\ b_{n-1} \\ b_n
+\end{bmatrix}.
+$$
+
+* **Back substitution** (backsolve): 
+$$
+\begin{eqnarray*}
+    x_n &=& b_n / a_{nn} \\
+    x_{n-1} &=& (b_{n-1} - a_{n-1,n} x_n) / a_{n-1,n-1} \\
+    x_{n-2} &=& (b_{n-2} - a_{n-2,n-1} x_{n-1} - a_{n-2,n} x_n) / a_{n-2,n-2} \\
+    &\vdots& \\
+    x_1 &=& (b_1 - a_{12} x_2 - a_{13} x_3 - \cdots - a_{1,n} x_{n}) / a_{11}.
+\end{eqnarray*}
+$$
+
+* $n^2$ flops.
+
+## Implementation
+
+* Most numerical computing software packages (including R) are built on top of the BLAS (_basic linear algebra subprograms_). 
+    - [Netlib](http://www.netlib.org/blas/) provides a reference implementation.  
+    - Vanila R (the binary that you can download from <https://www.r-project.org>) uses its own implementation of BLAS (see `sessionInfo()` above)
+
+* The BLAS triangular system solve is done *in place*, i.e., $\mathbf{b}$ is **overwritten** by $\mathbf{x}$.
+```r
+    # forward substitution
+    for (i in seq_len(n)) {
+        for (j in seq_len(i-1)) {
+            b[i] <- b[i] - A[i, j] * b[j]
+        }
+        b[i] <- b[i] / A[i, i]
+    }
+    # backsolve
+    for (i in rev(seq_len(n))) {
+        for (j in i + seq_len(max(n - i, 0))) {
+            b[i] <- b[i] - A[i, j] * b[j]
+        }
+        b[i] <- b[i] / A[i, i]
+    }
+```
+
+* R
+    - `?backsolve`, `?forwardsolve`
+    - This is a wrapper for the level-3 BLAS routine [`dtrsm`](http://www.netlib.org/lapack/explore-html/d1/d54/group__double__blas__level3_ga6a0a7704f4a747562c1bd9487e89795c.html#ga6a0a7704f4a747562c1bd9487e89795c)
+    - The `d` stands for *double precision*.
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+set.seed(123) # seed
+n <- 5
+A <- Matrix(rnorm(n * n), nrow = n)
+b <- rnorm(n)
+# a random matrix
+A
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+Al <- lower.tri(A) # Returns a matrix of logicals the same size of a given matrix with entries TRUE in the lower triangle
+Aupper <- A
+Aupper[Al] <- 0
+Aupper
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+backsolve(Aupper, b) 
+```
+
+## Some algebraic facts of triangular system
+
+* Eigenvalues of a triangular matrix $\mathbf{A}$ are diagonal entries $\lambda_i = a_{ii}$. 
+
+* Determinant $\det(\mathbf{A}) = \prod_i a_{ii}$.
+
+* The product of two upper (lower) triangular matrices is upper (lower) triangular.
+
+* The inverse of an upper (lower) triangular matrix is upper (lower) triangular.
+
+* The product of two unit upper (lower) triangular matrices is unit upper (lower) triangular.
+
+* The inverse of a unit upper (lower) triangular matrix is unit upper (lower) triangular.
+
+# Gaussian Elimination and LU Decomposition
+
+* A [toy example](./gelu.pdf).
+
+* [History](https://en.wikipedia.org/wiki/Gaussian_elimination#History): the method is named after Carl Friedrich Gauss (1777–1855), although it stems from the notes of Isaac Newton. If fact, GE was known to [Chinese mathematicians](https://en.wikipedia.org/wiki/The_Nine_Chapters_on_the_Mathematical_Art) as early as 179 AD.
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+A <- t(Matrix(c(2.0, -4.0, 2.0, 4.0, -9.0, 7.0, 2.0, 1.0, 3.0), ncol=3))  # R uses column major ordering
+A
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+b <- c(6.0, 20.0, 14.0)
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+# R's way tp solve linear equation
+
+solve(A, b)
+```
+
+What happens when we call `solve(A, b)`?
+
+## Elementary operator matrix
+
+* **Elementary operator matrix** is the identity matrix with the 0 in position $(j,k)$ replaced by $c$
+$$
+    \mathbf{E}_{jk}(c) = \begin{bmatrix}
+    1 & & \\
+    & \ddots & \\
+    & & 1 & \\
+    & & & \ddots & \\
+    & & c & & 1 & \\
+    & & & & & \ddots \\
+    & & & & & & 1
+    \end{bmatrix} = \mathbf{I} + c \mathbf{e}_j \mathbf{e}_k^T.
+$$
+
+* $\mathbf{E}_{jk}(c)$ is unit triangular, full rank, and its inverse is
+$$
+    \mathbf{E}_{jk}^{-1}(c) = \mathbf{E}_{jk}(-c).
+$$
+
+* $\mathbf{E}_{jk}(c)$ left-multiplies an $n \times m$ matrix $\mathbf{X}$ effectively replace its $j$-th row $\mathbf{x}_{j\cdot}$ by $c \mathbf{x}_{k \cdot} + \mathbf{x}_{j \cdot}$
+$$
+    \mathbf{E}_{jk}(c) \times \mathbf{X} = \mathbf{E}_{jk}(c) \times \begin{bmatrix}
+    & & \\
+    \cdots & \mathbf{x}_{k\cdot} & \cdots \\
+    & & \\
+    \cdots & \mathbf{x}_{j\cdot} & \cdots \\
+    & & 
+    \end{bmatrix} = \begin{bmatrix}
+    & & \\
+    \cdots & \mathbf{x}_{k\cdot} & \cdots \\
+    & & \\
+    \cdots & c \mathbf{x}_{k\cdot} + \mathbf{x}_{j\cdot} & \cdots \\
+    & & 
+    \end{bmatrix}.
+$$
+$2m$ flops (why?).
+
+* Gaussian elimination can be understood as applying a sequence of elementary operator matrices to transform the linear system $\mathbf{A} \mathbf{x} = \mathbf{b}$ to an upper triangular system
+$$
+\begin{eqnarray*}
+    \mathbf{E}_{n,n-1}(c_{n,n-1}) \cdots \mathbf{E}_{21}(c_{21}) \mathbf{A} \mathbf{x} &=& \mathbf{E}_{n,n-1}(c_{n,n-1}) \cdots \mathbf{E}_{21}(c_{21}) \mathbf{b} \\
+    \mathbf{U} \mathbf{x} &=& \mathbf{b}_{\text{new}}.
+\end{eqnarray*}
+$$
+
+Let's get back to our toy example.
+    
+### Column 1
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+#| tags: []
+E21 <- t(Matrix(c(1.0, 0.0, 0.0, -2.0, 1.0, 0.0, 0.0, 0.0, 1.0), nrow=3))  # Step 1, inv(L1)
+E21
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+# zero (2, 1) entry   
+E21 %*% A   # Step 1, A'
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+#| tags: []
+E31 <- t(Matrix(c(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 1.0), nrow=3))  # Step 2, find the corresponding matrix!
+E31
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+# zero (3, 1) entry    
+E31 %*% E21 %*% A  # Step2, A''
+```
+
+### Column 2
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+E32 <- t(Matrix(c(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 5.0, 1.0), nrow=3))  # Step 3, find the corresponding matrix!
+E32
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+# zero (3, 2) entry
+E32 %*% E31 %*% E21 %*% A   # Step 3, A'''
+```
+
+Thus we have arrived at an upper triangular matrix $\mathbf{U}$.
+
+## Gauss transformations
+
+* We can combine elementary operations by column.
+
+* For column 1,
+$$
+    \mathbf{M}_1 = \mathbf{E}_{n1}(c_{n1}) \cdots \mathbf{E}_{31}(c_{31}) \mathbf{E}_{21}(c_{21}) = \begin{bmatrix}
+    1 & \\
+    c_{21} & \\
+    & \ddots & \\
+    c_{n1} & & 1
+    \end{bmatrix}
+$$  
+
+* For column $k$,
+$$
+	\mathbf{M}_k = \mathbf{E}_{nk}(c_{nk}) \cdots \mathbf{E}_{k+1,k}(c_{k+1,k}) = \begin{bmatrix}
+	1 & \\
+	& \ddots \\
+	& & 1 & \\
+	& & c_{k+1,k} & 1\\
+	& & \vdots & & \ddots \\
+	& &  c_{n,k} & & & 1
+	\end{bmatrix}.
+$$
+
+* Matrices $\mathbf{M}_1, \ldots, \mathbf{M}_{n-1}$ are called the **Gauss transformations**.
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+M1 <- E31 %*% E21  # inv(L1 * L2)
+M1
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+M2 <- E32  # inv(L3)
+M2
+```
+
+* Gauss transformations $\mathbf{M}_k$ are unit triangular, full rank, with inverse
+$$
+	\mathbf{M}_k^{-1} = \mathbf{E}_{k+1,k}^{-1}(c_{k+1,k}) \cdots \mathbf{E}_{nk}^{-1}(c_{nk}) = \begin{bmatrix}
+	1 & \\
+	& \ddots \\
+	& & 1 & \\
+	& & - c_{k+1,k}\\
+	& & \vdots & & \ddots \\
+	& & - c_{n,k} & & & 1
+	\end{bmatrix}.
+$$
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+solve(M1)   # L2; solve(A) gives the inverse of A, but use it with caution (see below)
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+solve(M2)   # L3
+```
+
+## LU decomposition
+
+Gaussian elimination does
+$$
+\mathbf{M}_{n-1} \cdots \mathbf{M}_1 \mathbf{A} = \mathbf{U}.
+$$  
+Let
+
+\begin{equation*}
+\mathbf{L} = \mathbf{M}_1^{-1} \cdots \mathbf{M}_{n-1}^{-1} = \begin{bmatrix}  
+	1 & & & & \\
+	- c_{21} & \ddots & & & \\
+	& & 1 & & \\
+	- c_{k+1,1} & & - c_{k+1,k} & & \\
+	& & \vdots & & \ddots \\
+	- c_{n1} & & - c_{nk} & & & 1
+	\end{bmatrix}.
+\end{equation*}
+Thus we have the **LU decomposition**
+$$
+\mathbf{A} = \mathbf{L} \mathbf{U},
+$$
+where $\mathbf{L}$ is **unit** lower triangular and $\mathbf{U}$ is upper triangular.
+
+* LU decomposition exists if the principal sub-matrix $\mathbf{A}[1:k, 1:k]$ is non-singular for $k=1,\ldots,n-1$.
+
+* If the LU decomposition exists and $\mathbf{A}$ is non-singular, then the LU decmpositon is unique and
+$$
+    \det(\mathbf{A}) = \det(\mathbf{L}) \det(\mathbf{U}) = \prod_{k=1}^n u_{kk}.
+$$
+    - This is basically how R (and MATLAB and Julia) compute determinants.
+
+* The whole LU algorithm is done *in place*, i.e., $\mathbf{A}$ is **overwritten** by $\mathbf{L}$ and $\mathbf{U}$.
+```r
+for (k in seq_len(n-1)) {
+    for (i in k +seq_len(max(n - k, 0))) {
+        A[i, k] <- A[i, k] / A[k, k]   # computes L
+        for (j in k +seq_len(max(n - k, 0))) {
+            A[i, j] <- A[i, j] - A[i, k] * A[k, j]  # computes U
+        }
+    }
+}
+```
+
+<img src="http://www.netlib.org/utk/papers/factor/_25826_figure159.gif" width="500" align="center"/>
+
+Source: <http://www.netlib.org>
+
+* The LU decomposition costs (ignoring the cost of division)
+$$
+    2(n-1)^2 + 2(n-2)^2 + \cdots + 2 \cdot 1^2 \approx \frac 23 n^3 \quad \text{flops}.
+$$
+
+* Given LU decomposition $\mathbf{A} = \mathbf{L} \mathbf{U}$, solving $(\mathbf{L} \mathbf{U}) \mathbf{x} = \mathbf{b}$ for one right hand side costs $2n^2$ flops:
+    - One forward substitution ($n^2$ flops) to solve
+    $$
+    \mathbf{L} \mathbf{y} = \mathbf{b}
+    $$
+    - One back substitution ($n^2$ flops) to solve
+    $$
+    \mathbf{U} \mathbf{x} = \mathbf{y}
+    $$
+    
+* Therefore to solve $\mathbf{A} \mathbf{x} = \mathbf{b}$ via LU, we need a total of
+$$
+    \frac 23 n^3 + 2n^2 \quad \text{flops}.
+$$
+
+* If there are multiple right hand sides, LU only needs to be done once.
+
+## Matrix inversion
+
+* For matrix inversion, there are $n$ right hand sides $\mathbf{e}_1, \ldots, \mathbf{e}_n$. Taking advantage of 0s reduces $2n^3$ flops to $\frac 43 n^3$ flops. So **matrix inversion via LU** costs
+$$
+\frac 23 n^3 + \frac 43 n^3 = 2n^3 \quad \text{flops}.
+$$
+
+* **No inversion mentality**:  
+    > **Whenever we see matrix inverse, we should think in terms of solving linear equations.**
+    > In short, no ```solve(A) %*% b```, but ```solve(A, b)```.
+
+    We do not compute matrix inverse unless  
+    1. it is necessary to compute standard errors  
+    2. number of right hand sides is much larger than $n$  
+    3. $n$ is small
+ 
+
+## Pivoting    
+
+* Let
+$$
+    \mathbf{A} = \begin{bmatrix}
+    0 & 1 \\
+    1 & 0 \\
+    \end{bmatrix}.
+$$
+Is there a solution to $\mathbf{A} \mathbf{x} = \mathbf{b}$ for an arbitrary $\mathbf{b}$? Does GE/LU work for $\mathbf{A}$?
+
+* What if, during LU procedure, the **pivot** $a_{kk}$ is 0 or nearly 0 due to underflow?  
+     **Example**:
+$$
+\begin{split}
+0.001x_1 + x_2 &= 1  \\
+     x_1 + x_2 &= 2 
+\end{split}
+$$
+with solution
+
+$$
+\begin{bmatrix} x_1 \\ x_ 2 \end{bmatrix}
+=
+\begin{bmatrix} 1.001001 \\ 0.998999 \end{bmatrix}
+\approx
+\begin{bmatrix} 1.0 \\ 1.0 \end{bmatrix}
+.
+$$
+
+* With two significant digits, GE via LU yields 
+$$
+\begin{split}
+0.001x_1 + x_2 &= 1  \\
+     (1-1000)x_2 &= 2 - 1000 
+\end{split}
+$$
+or  
+$$
+\begin{split}
+0.001x_1 + x_2 &= 1 \\
+     -1000 x_2 &= -1000 
+\end{split}
+,
+$$
+yielding
+$$
+\begin{bmatrix} x_1 \\ x_ 2 \end{bmatrix}
+=
+\begin{bmatrix} 0.0 \\ 1.0 \end{bmatrix}
+!
+$$
+
+### Condition number and stability
+
+- The problem of solving $\mathbf{A}\mathbf{x}=\mathbf{b}$ for fixed $b$ can be viewed as a map $f: \mathbb{R}^{n\times n} \ni \mathbf{A} \mapsto \mathbf{A}^{-1}\mathbf{b} \in \mathbb{R}^n$.
+
+- A *well-conditioned* problem is one such that *all* small perturbations of a given input $\mathbf{A}$ lead to only small changes in $f(\mathbf{A})$.
+    + An *ill-conditioned* problem is one such that *some* small perturbation of $\mathbf{A}$ leads to a large change in $f(\mathbf{A})$.
+
+- The conditioning of the problem of computing $\mathbf{A}^{-1}\mathbf{b}$ given $\mathbf{A}$ is usually measured by the **condition number** 
+$$
+\kappa(\mathbf{A}) = \sigma_{\max}(\mathbf{A})/\sigma_{\min}(\mathbf{A})
+$$
+    + $\sigma_{\max}(\mathbf{A}) = \max_{\mathbf{x}\neq 0} \|\mathbf{A}\mathbf{x}\|/\|\mathbf{x}\|$ is the maximum singular value of $\mathbf{A}$;
+    + $\sigma_{\min}(\mathbf{A}) = \min_{\mathbf{x}\neq 0} \|\mathbf{A}\mathbf{x}\|/\|\mathbf{x}\|$ is the minimum singular value of $\mathbf{A}$.
+    
+- If $\mathbf{A}$ is singular, then $\sigma_{\min}(\mathbf{A}) = 0$, hence $\kappa(\mathbf{A}) = \infty$. So a large condition number indicates that $\mathbf{A}$ is close to singular and the problem is inherently hard.
+
+### Stability
+
+- An *algorithm* for computing $\mathbf{A}^{-1}\mathbf{b}$ using floating-point arithmetric can be viewed as another map $\tilde{f}: \mathbb{R}^{n\times n} \to \mathbb{R}^{n}$.
+
+- For given input $\mathbf{A}$, the solution computed by algorithm $\tilde{f}$ is $\hat{\mathbf{x}} = \tilde{f}(\mathbf{A})$. 
+    + Example 1: solve $\mathbf{A}\mathbf{x}=\mathbf{b}$ by GE/LU followed by forward and backward substitutions.
+    + Example 2: solve $\mathbf{A}\mathbf{x}=\mathbf{b}$ by Gauss-Seidel (an iterative method to come).
+    
+- Algorithms will be affected by at least rounding errors.
+
+- Algorithm $\tilde{f}$ is called *stable* if for any perturbed input $\tilde{\mathbf{A}}$ from $\mathbf{A}$ with relative error bounded by $\epsilon$, the relative error between $\hat{\mathbf{x}}$ and $\tilde{\mathbf{A}}^{-1}\mathbf{b}$ is bounded by $O(\epsilon)$.
+
+### Analysis of the example
+
+- The condition number of matrix $\mathbf{A} = \begin{bmatrix} 0.001 & 1 \\ 1 & 1 \end{bmatrix}$ is 2.262, so the problem itself is well-conditioned: a small change in $\mathbf{A}$ won't yield a large change in the solution $\mathbf{x} = \mathbf{A}^{-1}\mathbf{b}$. 
+
+- It is the instability of the GE/LU algorithm that yields the large error between the true solution $\mathbf{x}\approx(1, 1)$ and the computed solution (or the output of the algorithm) $\hat{\mathbf{x}}=(0, 1)$. This example suggests that with GE/LU, the worst-case relative error is $\|\mathbf{x}-\hat{\mathbf{x}}\| / \|\mathbf{x}\| \ge 1/\sqrt{2}$ (zero relative error in input $\tilde{\mathbf{A}}$), not small.
+
+- The root cause is the vastly different scale of $a_{11}$ with other coefficients and the order of ellimination. In particular, any $a_{22}$ such that $[a_{22} - 1000] = -1000$ and $b_2$ such that $[b_2 - 1000] = 1000$ will yield the same solution $\hat{\mathbf{x}}=(0, 1)$. 
+That is, the $1000 = a_{21}/a_{11}$ causes the loss of information in $a_{22}$ and $b_2$.
+(Recall Scenario 1 of Catastrophic Cancellation in Lecture 1.)
+
+- Indeed, the LU decomposition of $\mathbf{A}$ within the precision is
+$$
+    \mathbf{L} = \begin{bmatrix} 1 & 0 \\ 1000 & 1 \end{bmatrix},
+    \quad
+    \mathbf{U} = \begin{bmatrix} 0.001 & 1 \\ 0 & -1000 \end{bmatrix},
+$$
+resulting in $\mathbf{L}\mathbf{U} = \begin{bmatrix} 0.001 & 1 \\ 1 & 0 \end{bmatrix}$, so $\mathbf{L}\mathbf{U}$ is not even closed to $\mathbf{A} = \begin{bmatrix} 0.001 & 1 \\ 1 & 1 \end{bmatrix}$!
+
+### Pivoting (cont'd)
+
+* Solution: fix the algorithm by **pivoting** (i.e., change the order of elimination)
+$$
+\begin{split}
+     x_1 + x_2 &= 2  \\
+0.001x_1 + x_2 &= 1  
+\end{split}
+$$
+
+* With two significant digits, GE yields 
+$$
+\begin{split}
+     x_1 + x_2 &= 2  \\
+     (1-0.001)x_2 &= 1 - 0.002 
+\end{split}
+$$
+or
+$$
+\begin{split}
+     x_1 + x_2 &= 2  \\
+     1.0 x_2 &= 1.0
+\end{split}
+,
+$$
+yielding
+$$
+\begin{bmatrix} x_1 \\ x_ 2 \end{bmatrix}
+=
+\begin{bmatrix} 1.0 \\ 1.0 \end{bmatrix}
+.
+$$
+
+- Note that $0.001=a_{11}/a_{22}$ does not cause a loss of information in $a_{12}$ and $b_1$. The LU decomposition within the precision is
+$$
+    \mathbf{L} = \begin{bmatrix} 1 & 0 \\ 0.001 & 1 \end{bmatrix},
+    \quad
+    \mathbf{U} = \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix},
+    \quad
+    \mathbf{L}\mathbf{U} = \begin{bmatrix} 1 & 1 \\ 0.001 & 1.0 \end{bmatrix}.
+$$
+
+* **Partial pivoting**: before zeroing the $k$-th column, move the row with $\max_{i=k}^n |a_{ik}|$ is into the $k$-th row (called GEPP).
+    - Cost: $(n-1) + (n-2) + \dotsb + 1 = O(n^2)$.
+
+* LU with partial pivoting yields
+$$
+	\mathbf{P} \mathbf{A} = \mathbf{L} \mathbf{U},
+$$
+where $\mathbf{P}$ is a permutation matrix, $\mathbf{L}$ is unit lower triangular with $|\ell_{ij}| \le 1$, and $\mathbf{U}$ is upper triangular.
+
+* Complete pivoting (GECP): do both row and column interchanges so that the largest entry in the sub matrix `A[k:n, k:n]` is permuted to the $(k,k)$-th entry. This yields the decomposition 
+$$
+\mathbf{P} \mathbf{A} \mathbf{Q} = \mathbf{L} \mathbf{U},
+$$
+where $|\ell_{ij}| \le 1$.
+
+* GEPP is the most commonly used methods for solving **general** linear systems. GECP is more stable but costs more computation. Partial pivoting is stable most of times (which is partially because GEPP guarantees $|\ell_{ij}| \le 1$).
+
+## Implementation
+
+* Except for the iterative methods, most of these numerical linear algebra tasks are implemented in the BLAS and LAPACK libraries. LAPACK is built on top of BLAS. They form the **building blocks** of most statistical computing tasks.
+
+> LAPACK (Linear Algebra PACKage) is a standard software library for numerical linear algebra. It provides routines for solving systems of linear equations and linear least squares, eigenvalue problems, and singular value decomposition. -[Wikipedia](https://en.wikipedia.org/wiki/LAPACK)
+
+* LAPACK routine [`GETRF`](http://www.netlib.org/lapack/explore-html/dd/d9a/group__double_g_ecomputational_ga0019443faea08275ca60a734d0593e60.html#ga0019443faea08275ca60a734d0593e60) does $\mathbf{P} \mathbf{A} = \mathbf{L} \mathbf{U}$ (LU decomposition with partial pivoting) in place.
+
+* R: `solve()` implicitly performs LU decomposition (wrapper of LAPACK routine `DGESV`). `solve()` allows specifying a single or multiple right hand sides. If none, it computes the matrix inverse. The `Matrix` package contains `lu()` function that outputs `L`, `U`, and `pivot`.
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+A  # toy example, just to recall
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+alu <- Matrix::lu(A)
+class(alu)
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+ealu <- expand(alu) # expand the decomposition into Factors
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+ealu$L
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+ealu$U
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+ealu$P
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+with(ealu, L %*% U)
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+with(ealu, P %*% L %*% U)
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+det(A) # this does LU!
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+det(ealu$U) # this is cheap
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+solve(A) # this does LU!
+```
+
+```{r}
+#| output-fold: true
+#| jupyter: {outputs_hidden: true}
+with(ealu, solve(U) %*% solve(L) %*% t(P) ) # this is cheap???
+```
+
