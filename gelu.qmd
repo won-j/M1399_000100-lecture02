@@ -568,7 +568,7 @@ $$
 
 - The root cause is the vastly different scale of $a_{11}$ with other coefficients and the order of ellimination. In particular, any $a_{22}$ such that $[a_{22} - 1000] = -1000$ and $b_2$ such that $[b_2 - 1000] = 1000$ will yield the same solution $\hat{\mathbf{x}}=(0, 1)$. 
 That is, the $1000 = a_{21}/a_{11}$ causes the loss of information in $a_{22}$ and $b_2$.
-(Recall Scenario 1 of Catastrophic Cancellation in Lecture 1.)
+(Recall Catastrophic Cancellation in Lecture 1.)
 
 - Indeed, the LU decomposition of $\mathbf{A}$ within the precision is
 $$
